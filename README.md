@@ -52,15 +52,38 @@ aws sts get-caller-identity --profile dev
 aws sts get-caller-identity --profile demo
 ```
 
-### 4. Review and Modify Variables
+### 4. Review Variables and Create `terraform.tfvars` File
 
-In the `variables.tf` file, review the default values or modify them as needed for your environment. For example, you might want to change the region or the names of the VPC or subnets.
+In your Terraform configuration, you will likely have a `variables.tf` file that defines different variables used throughout your infrastructure. Before applying your configuration, you'll need to **review** these variables and **create** a `terraform.tfvars` file where you will provide specific values for these variables.
+
+1. **Create the `terraform.tfvars` File**:
+   
+   In your project directory, create a file named `terraform.tfvars` (if it doesn’t already exist).
+
+2. **Provide Values for the Variables**:
+   
+   Inside the `terraform.tfvars` file, you'll provide the specific values for the variables. At the very least, you'll want to define the AWS profile and the name of your VPC. For example:
+
+   ```hcl
+   aws_profile = "your-aws-profile"
+   vpc_name = "vpc-name"
+   ```
+
+- **`aws_profile`**: Specifies the AWS profile to be used when running Terraform commands. 
+  
+- **`vpc_name`**: Sets the name for your VPC.
+
+3. **Other Variables**:
+
+   As you continue to configure your infrastructure, you can also add values for other variables such as the CIDR block for your VPC, subnets, availability zones, etc., in the `terraform.tfvars` file. This ensures that you can easily manage and modify your configuration values outside of the main `.tf` files.
+
 
 ### 5. Apply the Terraform Configuration
 
 Run the following command to apply the Terraform configuration and create the AWS resources (VPC, Subnets, Internet Gateway, Route Tables):
 
 ```bash
+terraform plan
 terraform apply
 ```
 
