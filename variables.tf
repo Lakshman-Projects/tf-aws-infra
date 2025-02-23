@@ -39,6 +39,12 @@ variable "availability_zones" {
   default     = ["us-east-2a", "us-east-2b", "us-east-2c"]
 }
 
+variable "allowed_ports" {
+  description = "List of ports to allow for ingress"
+  type        = list(number)
+  default     = [22, 80, 443, 8080]
+}
+
 variable "custom_ami_id" {
   description = "The AMI ID for the custom EC2 instance"
   type        = string
