@@ -66,13 +66,11 @@ resource "aws_route_table_association" "private" {
 }
 
 
-# Create Application Security Group
 resource "aws_security_group" "app_security_group" {
   vpc_id      = aws_vpc.main.id
   name        = "${var.vpc_name}-app-sg"
   description = "Allow SSH, HTTP, HTTPS, and custom app port"
 
-  # Ingress rules for allowed ports
   ingress {
     from_port   = 22
     to_port     = 22
@@ -109,13 +107,12 @@ resource "aws_security_group" "app_security_group" {
   }
 }
 
-# Create EC2 Instance
 resource "aws_instance" "app_instance" {
   ami               = var.custom_ami_id
   instance_type     = "t2.micro"
   key_name          = var.key_name
   subnet_id         = aws_subnet.public[0].id
-  security_groups   = [aws_security_group.app_security_group.name]
+  security_groups = [aws_security_group.app_security_group.id]
   associate_public_ip_address = true
 
   root_block_device {
