@@ -2,7 +2,7 @@
 
 ## Overview
 
-This repository contains Terraform code for setting up networking infrastructure on AWS, including the creation of **Virtual Private Cloud (VPC)**, **Internet Gateway**, **Route Tables**, and **Subnets**. This setup is essential for deploying and managing resources in an isolated network.
+This repository contains Terraform code for setting up networking infrastructure on AWS, including the creation of **Virtual Private Cloud (VPC)**, **Internet Gateway**, **Route Tables**, and **Subnets**. This setup is essential for deploying and managing resources in an isolated network
 
 ## Prerequisites
 
