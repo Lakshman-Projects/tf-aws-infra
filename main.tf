@@ -64,3 +64,47 @@ resource "aws_route_table_association" "private" {
   subnet_id      = aws_subnet.private[count.index].id
   route_table_id = aws_route_table.private.id
 }
+
+
+resource "aws_security_group" "app_security_group" {
+  vpc_id      = aws_vpc.main.id
+  name        = "${var.vpc_name}-app-sg"
+  description = "Allow SSH, HTTP, HTTPS, and custom app port"
+
+  dynamic "ingress" {
+    for_each = var.allowed_ports
+    content {
+      from_port   = ingress.value
+      to_port     = ingress.value
+      protocol    = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_instance" "app_instance" {
+  ami                         = var.custom_ami_id
+  instance_type               = "t2.micro"
+  key_name                    = var.key_name
+  subnet_id                   = aws_subnet.public[0].id
+  security_groups             = [aws_security_group.app_security_group.id]
+  associate_public_ip_address = true
+
+  root_block_device {
+    volume_size           = 25
+    volume_type           = "gp2"
+    delete_on_termination = true
+  }
+
+  disable_api_termination = false
+  tags = {
+    Name = "App EC2 Instance"
+  }
+}

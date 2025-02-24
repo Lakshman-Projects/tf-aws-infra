@@ -6,7 +6,7 @@ variable "aws_profile" {
 variable "aws_region" {
   description = "AWS region to deploy resources"
   type        = string
-  default     = "us-east-2"
+  default     = "us-east-1"
 }
 
 variable "vpc_cidr" {
@@ -36,5 +36,21 @@ variable "private_subnets" {
 variable "availability_zones" {
   description = "List of availability zones"
   type        = list(string)
-  default     = ["us-east-2a", "us-east-2b", "us-east-2c"]
+  default     = ["us-east-1a", "us-east-1b", "us-east-1c"]
+}
+
+variable "allowed_ports" {
+  description = "List of ports to allow for ingress"
+  type        = list(number)
+  default     = [22, 80, 443, 8080]
+}
+
+variable "custom_ami_id" {
+  description = "The AMI ID for the custom EC2 instance"
+  type        = string
+}
+
+variable "key_name" {
+  description = "The key pair name to be used for SSH access"
+  type        = string
 }

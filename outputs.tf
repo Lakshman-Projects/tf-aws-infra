@@ -27,3 +27,18 @@ output "private_route_table_id" {
   description = "ID of the private route table"
   value       = aws_route_table.private.id
 }
+
+output "app_security_group_id" {
+  description = "ID of the application security group"
+  value       = aws_security_group.app_security_group.id
+}
+
+output "ec2_instance_id" {
+  description = "ID of the EC2 instance"
+  value       = aws_instance.app_instance.id
+}
+
+output "instance_public_ip" {
+  description = "Public IP address of the EC2 instance"
+  value       = aws_instance.app_instance.public_ip
+}
