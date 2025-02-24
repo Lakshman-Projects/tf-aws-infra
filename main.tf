@@ -90,15 +90,15 @@ resource "aws_security_group" "app_security_group" {
 }
 
 resource "aws_instance" "app_instance" {
-  ami               = var.custom_ami_id
-  instance_type     = "t2.micro"
-  key_name          = var.key_name
-  subnet_id         = aws_subnet.public[0].id
-  security_groups = [aws_security_group.app_security_group.id]
+  ami                         = var.custom_ami_id
+  instance_type               = "t2.micro"
+  key_name                    = var.key_name
+  subnet_id                   = aws_subnet.public[0].id
+  security_groups             = [aws_security_group.app_security_group.id]
   associate_public_ip_address = true
 
   root_block_device {
-    volume_size           = 25 
+    volume_size           = 25
     volume_type           = "gp2"
     delete_on_termination = true
   }
