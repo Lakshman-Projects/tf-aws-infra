@@ -6,7 +6,7 @@ variable "aws_profile" {
 variable "aws_region" {
   description = "AWS region to deploy resources"
   type        = string
-  default     = "us-east-2"
+  default     = "us-east-1"
 }
 
 variable "vpc_cidr" {
@@ -36,7 +36,7 @@ variable "private_subnets" {
 variable "availability_zones" {
   description = "List of availability zones"
   type        = list(string)
-  default     = ["us-east-2a", "us-east-2b", "us-east-2c"]
+  default     = ["us-east-1a", "us-east-1b", "us-east-1c"]
 }
 
 variable "allowed_ports" {
