@@ -67,3 +67,9 @@ variable "bucket_Transition_days" {
   default     = 30
   
 }
+
+variable "db_port" {
+  description = "The port for the RDS instance"
+  type        = number
+  default     = 5432
+}

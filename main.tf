@@ -149,3 +149,27 @@ resource "aws_s3_bucket_lifecycle_configuration" "bucket_lifecycle" {
   }
 }
 
+resource "aws_security_group" "db_security_group" {
+  vpc_id      = aws_vpc.main.id
+  name        = "${var.vpc_name}-db-sg"
+  description = "Allow DB traffic from app security group"
+
+  ingress {
+    from_port       = var.db_port
+    to_port         = var.db_port
+    protocol        = "tcp"
+    security_groups = [aws_security_group.app_security_group.id] # Source is app SG
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.vpc_name}-db-sg"
+  }
+}
+
