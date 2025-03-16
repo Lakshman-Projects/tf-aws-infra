@@ -92,7 +92,7 @@ resource "aws_security_group" "app_security_group" {
 resource "random_uuid" "bucket_suffix" {}
 
 resource "aws_s3_bucket" "bucket" {
-  bucket = "csye6225-${random_uuid.bucket_suffix.result}"
+  bucket        = "csye6225-${random_uuid.bucket_suffix.result}"
   force_destroy = true # Enable force destroy to allow Terraform to delete non-empty buckets
 
   tags = {
@@ -102,7 +102,7 @@ resource "aws_s3_bucket" "bucket" {
 
 resource "aws_s3_bucket_acl" "bucket_acl" {
   bucket = aws_s3_bucket.bucket.id
-  acl    = "private" 
+  acl    = "private"
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "bucket_sse" {
@@ -110,7 +110,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "bucket_sse" {
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm     = var.bucket_sse_algorithm
+      sse_algorithm = var.bucket_sse_algorithm
     }
   }
 }
@@ -119,7 +119,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "bucket_lifecycle" {
   bucket = aws_s3_bucket.bucket.id
 
   rule {
-    id      = "transition-to-ia"
+    id     = "transition-to-ia"
     status = "Enabled"
 
     transition {
@@ -154,8 +154,8 @@ resource "aws_security_group" "db_security_group" {
 }
 
 resource "aws_db_parameter_group" "db_parameter_group" {
-  name   = "${var.vpc_name}-db-pg"
-  family = var.db_family
+  name        = "${var.vpc_name}-db-pg"
+  family      = var.db_family
   description = "DB parameter group for ${var.vpc_name}"
 
   tags = {
@@ -264,7 +264,7 @@ resource "aws_instance" "app_instance" {
     echo "DB_USER=csye6225" >> /etc/environment
     echo "DB_PASS=${var.db_password}" >> /etc/environment
     echo "DB_NAME=csye6225" >> /etc/environment
-    echo "S3_BUCKET=${aws_s3_bucket.private_bucket.bucket}" >> /etc/environment
+    echo "S3_BUCKET=${aws_s3_bucket.bucket.bucket}" >> /etc/environment
     EOF
 
   disable_api_termination = false

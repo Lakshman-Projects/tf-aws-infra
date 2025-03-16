@@ -65,7 +65,7 @@ variable "bucket_Transition_days" {
   description = "The number of days to retain the object in the bucket before transitioning to Standard_IA storage class"
   type        = number
   default     = 30
-  
+
 }
 
 variable "db_port" {
@@ -83,10 +83,10 @@ variable "db_family" {
 variable "db_username" {
   description = "The username for the RDS instance"
   type        = string
-  default = "csye6225"
+  default     = "csye6225"
 }
 
 variable "db_password" {
   description = "The password for the RDS instance"
-  type        = string  
+  type        = string
 }
