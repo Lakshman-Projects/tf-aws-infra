@@ -173,3 +173,42 @@ resource "aws_security_group" "db_security_group" {
   }
 }
 
+resource "aws_db_parameter_group" "db_parameter_group" {
+  name   = "${var.vpc_name}-db-pg"
+  family = var.db_family
+  description = "DB parameter group for ${var.vpc_name}"
+
+  tags = {
+    Name = "${var.vpc_name}-db-pg"
+  }
+}
+
+resource "aws_db_subnet_group" "private" {
+  name       = "csye6225-private-subnet-group"
+  subnet_ids = aws_subnet.private[*].id
+
+  tags = {
+    Name = "csye6225-private-subnet-group"
+  }
+}
+
+resource "aws_db_instance" "main" {
+  identifier             = "csye6225"
+  engine                 = "postgres"
+  instance_class         = "db.t3.micro"
+  allocated_storage      = 20
+  username               = var.db_username
+  password               = var.db_password
+  db_name                = "csye6225"
+  multi_az               = false
+  publicly_accessible    = false
+  vpc_security_group_ids = [aws_security_group.db_security_group.id]
+  db_subnet_group_name   = aws_db_subnet_group.private.name
+  parameter_group_name   = aws_db_parameter_group.db_parameter_group.name
+  skip_final_snapshot    = true # For testing; set to false in production with a snapshot identifier
+
+  tags = {
+    Name = "csye6225-rds"
+  }
+}
+

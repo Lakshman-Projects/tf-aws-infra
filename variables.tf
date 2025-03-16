@@ -73,3 +73,20 @@ variable "db_port" {
   type        = number
   default     = 5432
 }
+
+variable "db_family" {
+  description = "The family of the DB parameter group"
+  type        = string
+  default     = "postgres17"
+}
+
+variable "db_username" {
+  description = "The username for the RDS instance"
+  type        = string
+  default = "csye6225"
+}
+
+variable "db_password" {
+  description = "The password for the RDS instance"
+  type        = string  
+}
