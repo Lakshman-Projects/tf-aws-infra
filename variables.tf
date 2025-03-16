@@ -54,3 +54,16 @@ variable "key_name" {
   description = "The key pair name to be used for SSH access"
   type        = string
 }
+
+variable "bucket_sse_algorithm" {
+  description = "The server-side encryption algorithm to use for the S3 bucket"
+  type        = string
+  default     = "AES256"
+}
+
+variable "bucket_Transition_days" {
+  description = "The number of days to retain the object in the bucket before transitioning to Standard_IA storage class"
+  type        = number
+  default     = 30
+  
+}

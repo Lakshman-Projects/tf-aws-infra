@@ -108,3 +108,44 @@ resource "aws_instance" "app_instance" {
     Name = "App EC2 Instance"
   }
 }
+
+resource "random_uuid" "bucket_suffix" {}
+
+resource "aws_s3_bucket" "bucket" {
+  bucket = "csye6225-${random_uuid.bucket_suffix.result}"
+  force_destroy = true # Enable force destroy to allow Terraform to delete non-empty buckets
+
+  tags = {
+    Name = "csye6225-private-bucket"
+  }
+}
+
+resource "aws_s3_bucket_acl" "bucket_acl" {
+  bucket = aws_s3_bucket.bucket.id
+  acl    = "private" 
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "bucket_sse" {
+  bucket = aws_s3_bucket.bucket.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm     = var.bucket_sse_algorithm
+    }
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "bucket_lifecycle" {
+  bucket = aws_s3_bucket.bucket.id
+
+  rule {
+    id      = "transition-to-ia"
+    status = "Enabled"
+
+    transition {
+      days          = var.bucket_Transition_days
+      storage_class = "STANDARD_IA"
+    }
+  }
+}
+
