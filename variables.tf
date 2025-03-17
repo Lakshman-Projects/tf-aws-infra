@@ -54,3 +54,45 @@ variable "key_name" {
   description = "The key pair name to be used for SSH access"
   type        = string
 }
+
+variable "bucket_sse_algorithm" {
+  description = "The server-side encryption algorithm to use for the S3 bucket"
+  type        = string
+  default     = "AES256"
+}
+
+variable "bucket_Transition_days" {
+  description = "The number of days to retain the object in the bucket before transitioning to Standard_IA storage class"
+  type        = number
+  default     = 30
+
+}
+
+variable "db_port" {
+  description = "The port for the RDS instance"
+  type        = number
+  default     = 5432
+}
+
+variable "db_family" {
+  description = "The family of the DB parameter group"
+  type        = string
+  default     = "postgres17"
+}
+
+variable "db_username" {
+  description = "The username for the RDS instance"
+  type        = string
+  default     = "csye6225"
+}
+
+variable "db_password" {
+  description = "The password for the RDS instance"
+  type        = string
+}
+
+variable "db_name" {
+  description = "The name of the database to create"
+  type        = string
+  default     = "csye6225"
+}
