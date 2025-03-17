@@ -100,11 +100,6 @@ resource "aws_s3_bucket" "bucket" {
   }
 }
 
-resource "aws_s3_bucket_acl" "bucket_acl" {
-  bucket = aws_s3_bucket.bucket.id
-  acl    = "private"
-}
-
 resource "aws_s3_bucket_server_side_encryption_configuration" "bucket_sse" {
   bucket = aws_s3_bucket.bucket.id
 
@@ -179,7 +174,7 @@ resource "aws_db_instance" "main" {
   allocated_storage      = 20
   username               = var.db_username
   password               = var.db_password
-  db_name                = "csye6225"
+  db_name                = var.db_name
   multi_az               = false
   publicly_accessible    = false
   vpc_security_group_ids = [aws_security_group.db_security_group.id]
@@ -222,6 +217,7 @@ resource "aws_iam_policy" "s3_access_policy" {
         Action = [
           "s3:PutObject",
           "s3:GetObject",
+          "s3:DeleteObject",
           "s3:ListBucket"
         ]
         Resource = [
@@ -260,11 +256,9 @@ resource "aws_instance" "app_instance" {
 
   user_data = <<-EOF
     #!/bin/bash
-    echo "DB_HOST=${aws_db_instance.main.endpoint}" >> /etc/environment
-    echo "DB_USER=csye6225" >> /etc/environment
-    echo "DB_PASS=${var.db_password}" >> /etc/environment
-    echo "DB_NAME=csye6225" >> /etc/environment
-    echo "S3_BUCKET=${aws_s3_bucket.bucket.bucket}" >> /etc/environment
+    echo "CLOUD_DATABASE_URL=postgres://${var.db_username}:${var.db_password}@${aws_db_instance.main.endpoint}/${var.db_name}" >> /opt/csye6225/webapp/.env
+    echo "S3_BUCKET=${aws_s3_bucket.bucket.bucket}" >> /opt/csye6225/webapp/.env
+    echo "AWS_REGION=${var.aws_region}" >> /opt/csye6225/webapp/.env
     EOF
 
   disable_api_termination = false

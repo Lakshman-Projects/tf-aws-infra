@@ -90,3 +90,9 @@ variable "db_password" {
   description = "The password for the RDS instance"
   type        = string
 }
+
+variable "db_name" {
+  description = "The name of the database to create"
+  type        = string
+  default     = "csye6225"
+}
