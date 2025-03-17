@@ -259,6 +259,7 @@ resource "aws_instance" "app_instance" {
     echo "CLOUD_DATABASE_URL=postgres://${var.db_username}:${var.db_password}@${aws_db_instance.main.endpoint}/${var.db_name}" >> /opt/csye6225/webapp/.env
     echo "S3_BUCKET=${aws_s3_bucket.bucket.bucket}" >> /opt/csye6225/webapp/.env
     echo "AWS_REGION=${var.aws_region}" >> /opt/csye6225/webapp/.env
+    sudo sed -i 's/development/cloud/g' /opt/csye6225/webapp/.env
     EOF
 
   disable_api_termination = false
