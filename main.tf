@@ -234,6 +234,11 @@ resource "aws_iam_role_policy_attachment" "s3_access_attach" {
   policy_arn = aws_iam_policy.s3_access_policy.arn
 }
 
+resource "aws_iam_role_policy_attachment" "cloudwatch_agent_policy" {
+  role       = aws_iam_role.ec2_s3_role.name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+}
+
 resource "aws_iam_instance_profile" "ec2_profile" {
   name = "ec2-s3-profile"
   role = aws_iam_role.ec2_s3_role.name
@@ -260,10 +265,21 @@ resource "aws_instance" "app_instance" {
     echo "S3_BUCKET=${aws_s3_bucket.bucket.bucket}" >> /opt/csye6225/webapp/.env
     echo "AWS_REGION=${var.aws_region}" >> /opt/csye6225/webapp/.env
     sudo sed -i 's/development/cloud/g' /opt/csye6225/webapp/.env
+
+    INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+    sudo sed -i "s/{instance_id}/$INSTANCE_ID/" /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+    sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json -s
+
+    sudo systemctl restart app.service
     EOF
 
   disable_api_termination = false
   tags = {
     Name = "App EC2 Instance"
   }
+}
+
+resource "aws_cloudwatch_log_group" "webapp_logs" {
+  name              = "WebAppLogs"
+  retention_in_days = 7
 }
