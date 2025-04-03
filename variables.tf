@@ -42,7 +42,7 @@ variable "availability_zones" {
 variable "allowed_ports" {
   description = "List of ports to allow for ingress"
   type        = list(number)
-  default     = [22, 80, 443, 8080]
+  default     = [22, 8080]
 }
 
 variable "custom_ami_id" {
@@ -95,4 +95,28 @@ variable "db_name" {
   description = "The name of the database to create"
   type        = string
   default     = "csye6225"
+}
+
+variable "scale_up_cpu_threshold" {
+  description = "The CPU threshold for scaling up the EC2 instance"
+  type        = string
+  default     = "5"
+}
+
+variable "scale_down_cpu_threshold" {
+  description = "The CPU threshold for scaling down the EC2 instance"
+  type        = string
+  default     = "3"
+}
+
+variable "a_record_hosted_zone_id" {
+  description = "The hosted zone ID for the demo environment"
+  type        = string
+  default     = "Z06382513SNS0CDBIIDYJ"
+}
+
+variable "a_record_name" {
+  description = "The name of the A record to create"
+  type        = string
+  default     = "demo.lakshman.me"
 }
