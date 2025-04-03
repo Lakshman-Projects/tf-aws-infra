@@ -69,15 +69,15 @@ resource "aws_route_table_association" "private" {
 resource "aws_security_group" "app_security_group" {
   vpc_id      = aws_vpc.main.id
   name        = "${var.vpc_name}-app-sg"
-  description = "Allow SSH, HTTP, HTTPS, and custom app port"
+  description = "Allow SSH and app traffic from ALB"
 
   dynamic "ingress" {
     for_each = var.allowed_ports
     content {
-      from_port   = ingress.value
-      to_port     = ingress.value
-      protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/0"]
+      from_port       = ingress.value
+      to_port         = ingress.value
+      protocol        = "tcp"
+      security_groups = [aws_security_group.alb_security_group.id]
     }
   }
 
@@ -244,22 +244,58 @@ resource "aws_iam_instance_profile" "ec2_profile" {
   role = aws_iam_role.ec2_s3_role.name
 }
 
-resource "aws_instance" "app_instance" {
-  ami                         = var.custom_ami_id
-  instance_type               = "t2.micro"
-  key_name                    = var.key_name
-  subnet_id                   = aws_subnet.public[0].id
-  security_groups             = [aws_security_group.app_security_group.id]
-  associate_public_ip_address = true
-  iam_instance_profile        = aws_iam_instance_profile.ec2_profile.name
+resource "aws_cloudwatch_log_group" "webapp_logs" {
+  name              = "WebAppLogs"
+  retention_in_days = 7
+}
 
-  root_block_device {
-    volume_size           = 25
-    volume_type           = "gp2"
-    delete_on_termination = true
+resource "aws_security_group" "alb_security_group" {
+  vpc_id      = aws_vpc.main.id
+  name        = "${var.vpc_name}-alb-sg"
+  description = "Allow HTTP and HTTPS traffic from anywhere"
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
-  user_data = <<-EOF
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.vpc_name}-alb-sg"
+  }
+}
+
+resource "aws_launch_template" "csye6225_lt" {
+  name_prefix   = "csye6225-lt-"
+  image_id      = var.custom_ami_id
+  instance_type = "t2.micro"
+  key_name      = var.key_name
+
+  network_interfaces {
+    associate_public_ip_address = true
+    security_groups             = [aws_security_group.app_security_group.id]
+  }
+
+  iam_instance_profile {
+    name = aws_iam_instance_profile.ec2_profile.name
+  }
+
+  user_data = base64encode(<<-EOF
     #!/bin/bash
     echo "CLOUD_DATABASE_URL=postgres://${var.db_username}:${var.db_password}@${aws_db_instance.main.endpoint}/${var.db_name}" >> /opt/csye6225/webapp/.env
     echo "S3_BUCKET=${aws_s3_bucket.bucket.bucket}" >> /opt/csye6225/webapp/.env
@@ -272,14 +308,142 @@ resource "aws_instance" "app_instance" {
 
     sudo systemctl restart app.service
     EOF
+  )
 
-  disable_api_termination = false
-  tags = {
-    Name = "App EC2 Instance"
+  tag_specifications {
+    resource_type = "instance"
+    tags = {
+      Name = "App EC2 Instance"
+    }
   }
 }
 
-resource "aws_cloudwatch_log_group" "webapp_logs" {
-  name              = "WebAppLogs"
-  retention_in_days = 7
+resource "aws_autoscaling_group" "csye6225_asg" {
+  name                = "csye6225-asg"
+  vpc_zone_identifier = aws_subnet.public[*].id
+  target_group_arns   = [aws_lb_target_group.app_tg.arn]
+  health_check_type   = "ELB"
+  min_size            = 3
+  max_size            = 5
+  desired_capacity    = 3
+  default_cooldown    = 60
+
+  launch_template {
+    id      = aws_launch_template.csye6225_lt.id
+    version = "$Latest"
+  }
+
+  tag {
+    key                 = "Name"
+    value               = "App EC2 Instance"
+    propagate_at_launch = true
+  }
+}
+
+resource "aws_lb" "app_lb" {
+  name               = "${var.vpc_name}-alb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.alb_security_group.id]
+  subnets            = aws_subnet.public[*].id
+
+  tags = {
+    Name = "${var.vpc_name}-alb"
+  }
+}
+
+resource "aws_lb_target_group" "app_tg" {
+  name     = "${var.vpc_name}-tg"
+  port     = 8080
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.main.id
+
+  health_check {
+    path                = "/healthz"
+    protocol            = "HTTP"
+    matcher             = "200"
+    interval            = 30
+    timeout             = 3
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+  }
+
+  tags = {
+    Name = "${var.vpc_name}-tg"
+  }
+}
+
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.app_lb.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.app_tg.arn
+  }
+}
+
+resource "aws_autoscaling_policy" "scale_up" {
+  name                   = "scale-up"
+  policy_type            = "SimpleScaling"
+  autoscaling_group_name = aws_autoscaling_group.csye6225_asg.name
+  adjustment_type        = "ChangeInCapacity"
+  scaling_adjustment     = 1
+  cooldown               = 300
+}
+
+resource "aws_cloudwatch_metric_alarm" "cpu_high" {
+  alarm_name          = "cpu-utilization-high"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/EC2"
+  period              = "300"
+  statistic           = "Average"
+  threshold           = var.scale_up_cpu_threshold
+  alarm_description   = "Scale up if CPU > 5%"
+  alarm_actions       = [aws_autoscaling_policy.scale_up.arn]
+
+  dimensions = {
+    AutoScalingGroupName = aws_autoscaling_group.csye6225_asg.name
+  }
+}
+
+resource "aws_autoscaling_policy" "scale_down" {
+  name                   = "scale-down"
+  policy_type            = "SimpleScaling"
+  autoscaling_group_name = aws_autoscaling_group.csye6225_asg.name
+  adjustment_type        = "ChangeInCapacity"
+  scaling_adjustment     = -1
+  cooldown               = 300
+}
+
+resource "aws_cloudwatch_metric_alarm" "cpu_low" {
+  alarm_name          = "cpu-utilization-low"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/EC2"
+  period              = "300"
+  statistic           = "Average"
+  threshold           = var.scale_down_cpu_threshold
+  alarm_description   = "Scale down if CPU < 3%"
+  alarm_actions       = [aws_autoscaling_policy.scale_down.arn]
+
+  dimensions = {
+    AutoScalingGroupName = aws_autoscaling_group.csye6225_asg.name
+  }
+}
+
+resource "aws_route53_record" "a_record" {
+  zone_id = var.a_record_hosted_zone_id
+  name    = var.a_record_name
+  type    = "A"
+
+  alias {
+    name                   = aws_lb.app_lb.dns_name
+    zone_id                = aws_lb.app_lb.zone_id
+    evaluate_target_health = true
+  }
 }
