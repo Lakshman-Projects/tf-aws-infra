@@ -105,7 +105,8 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "bucket_sse" {
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = var.bucket_sse_algorithm
+      sse_algorithm = "aws:kms"
+      kms_master_key_id = aws_kms_key.s3_key.arn
     }
   }
 }
@@ -173,7 +174,7 @@ resource "aws_db_instance" "main" {
   instance_class         = "db.t3.micro"
   allocated_storage      = 20
   username               = var.db_username
-  password               = var.db_password
+  password               = random_password.db_password.result
   db_name                = var.db_name
   multi_az               = false
   publicly_accessible    = false
@@ -181,6 +182,8 @@ resource "aws_db_instance" "main" {
   db_subnet_group_name   = aws_db_subnet_group.private.name
   parameter_group_name   = aws_db_parameter_group.db_parameter_group.name
   skip_final_snapshot    = true # For testing; set to false in production with a snapshot identifier
+  kms_key_id             = aws_kms_key.rds_key.arn
+  storage_encrypted      = true
 
   tags = {
     Name = "csye6225-rds"
@@ -227,6 +230,33 @@ resource "aws_iam_policy" "s3_access_policy" {
       }
     ]
   })
+}
+
+resource "aws_iam_policy" "secrets_access_policy" {
+  name = "SecretsManagerAccessPolicy"
+  description = "Allow EC2 to access Secrets Manager"
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect   = "Allow",
+      Action   = [
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:DescribeSecret",
+        "kms:Encrypt",
+        "kms:Decrypt",
+        "kms:ReEncrypt*",
+        "kms:GenerateDataKey*",
+        "kms:DescribeKey"
+      ],
+      Resource = aws_secretsmanager_secret.db_password_secret.arn
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "secrets_policy_attach" {
+  role       = aws_iam_role.ec2_s3_role.name
+  policy_arn = aws_iam_policy.secrets_access_policy.arn
 }
 
 resource "aws_iam_role_policy_attachment" "s3_access_attach" {
@@ -295,9 +325,26 @@ resource "aws_launch_template" "csye6225_lt" {
     name = aws_iam_instance_profile.ec2_profile.name
   }
 
+  block_device_mappings {
+    device_name = "/dev/xvda"
+    ebs {
+      volume_size           = 8
+      volume_type           = "gp2"
+      delete_on_termination = true
+      encrypted             = true
+      kms_key_id            = aws_kms_key.ec2_key.arn
+    }
+  }
+
   user_data = base64encode(<<-EOF
     #!/bin/bash
-    echo "CLOUD_DATABASE_URL=postgres://${var.db_username}:${var.db_password}@${aws_db_instance.main.endpoint}/${var.db_name}" >> /opt/csye6225/webapp/.env
+
+    DB_PASSWORD=$(aws secretsmanager get-secret-value \
+        --region ${var.aws_region} \
+        --secret-id csye6225-db-password-${random_id.secret_suffix.hex} \
+        --query SecretString --output text)
+
+    echo "CLOUD_DATABASE_URL=postgres://${var.db_username}:$DB_PASSWORD@${aws_db_instance.main.endpoint}/${var.db_name}" >> /opt/csye6225/webapp/.env
     echo "S3_BUCKET=${aws_s3_bucket.bucket.bucket}" >> /opt/csye6225/webapp/.env
     echo "AWS_REGION=${var.aws_region}" >> /opt/csye6225/webapp/.env
     sudo sed -i 's/development/cloud/g' /opt/csye6225/webapp/.env
@@ -445,5 +492,246 @@ resource "aws_route53_record" "a_record" {
     name                   = aws_lb.app_lb.dns_name
     zone_id                = aws_lb.app_lb.zone_id
     evaluate_target_health = true
+  }
+}
+
+data "aws_caller_identity" "current" {}
+
+resource "aws_kms_key" "ec2_key" {
+  description             = "KMS key for EC2 encryption"
+  enable_key_rotation     = true
+  rotation_period_in_days = 90
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid = "AllowRootFullAccess",
+        Effect = "Allow",
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        },
+        Action = "kms:*",
+        Resource = "*"
+      },
+      {
+        Sid = "AllowEC2ServiceUse",
+        Effect = "Allow",
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        },
+        Action = [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey",
+          "kms:CreateGrant"
+        ],
+        Resource = "*",
+        Condition = {
+          StringEquals = {
+            "kms:ViaService"    = "ec2.${var.aws_region}.amazonaws.com",
+            "kms:CallerAccount" = "${data.aws_caller_identity.current.account_id}"
+          }
+        }
+      },
+      {
+        Sid = "AllowAutoScalingService",
+        Effect = "Allow",
+        Principal = {
+          Service = "autoscaling.amazonaws.com"
+        },
+        Action   = "kms:CreateGrant",
+        Resource = "*"
+      },
+      {
+        Sid = "AllowServiceLinkedRoleAutoScaling",
+        Effect = "Allow",
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling"
+        },
+        Action = [
+          "kms:CreateGrant",
+          "kms:Decrypt",
+          "kms:Encrypt",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey"
+        ],
+        Resource = "*",
+        Condition = {
+          StringEquals = {
+            "kms:ViaService"    = "ec2.${var.aws_region}.amazonaws.com",
+            "kms:CallerAccount" = "${data.aws_caller_identity.current.account_id}"
+          }
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_kms_key" "rds_key" {
+  description             = "KMS key for RDS encryption"
+  enable_key_rotation     = true
+  rotation_period_in_days = 90
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid    = "AllowRootFullAccess"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      },
+      {
+        Sid    = "AllowRDSServiceUse"
+        Effect = "Allow"
+        Principal = {
+          Service = "rds.amazonaws.com"
+        }
+        Action = [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:DescribeKey",
+          "kms:GenerateDataKey"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_kms_key" "s3_key" {
+  description             = "KMS key for S3 encryption"
+  enable_key_rotation     = true
+  rotation_period_in_days = 90
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid    = "AllowRootFullAccess"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      },
+      {
+        Sid    = "AllowS3ServiceAccess"
+        Effect = "Allow"
+        Principal = {
+          Service = "s3.amazonaws.com"
+        }
+        Action = [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid = "AllowEC2ToUseS3KMS",
+        Effect = "Allow",
+        Principal = {
+          AWS = aws_iam_role.ec2_s3_role.arn
+        },
+        Action = [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey"
+        ],
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_kms_key" "secrets_key" {
+  description             = "KMS key for Secrets Manager"
+  enable_key_rotation     = true
+  rotation_period_in_days = 90
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid    = "AllowRootFullAccess"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      },
+      {
+        Sid    = "AllowSecretsManagerUse"
+        Effect = "Allow"
+        Principal = {
+          Service = "secretsmanager.amazonaws.com"
+        }
+        Action = [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:GenerateDataKey",
+          "kms:DescribeKey"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "AllowEC2ToDecryptSecrets"
+        Effect = "Allow"
+        Principal = {
+          AWS = aws_iam_role.ec2_s3_role.arn
+        }
+        Action = [
+          "kms:Decrypt",
+          "kms:DescribeKey"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "random_password" "db_password" {
+  length           = 12
+  special          = false
+}
+
+resource "random_id" "secret_suffix" {
+  byte_length = 4
+}
+
+resource "aws_secretsmanager_secret" "db_password_secret" {
+  name                    = "csye6225-db-password-${random_id.secret_suffix.hex}"
+  description             = "RDS password stored securely"
+  kms_key_id              = aws_kms_key.secrets_key.arn
+}
+
+resource "aws_secretsmanager_secret_version" "db_password_secret_version" {
+  secret_id     = aws_secretsmanager_secret.db_password_secret.id
+  secret_string = random_password.db_password.result
+}
+
+resource "aws_lb_listener" "https" {
+  load_balancer_arn = aws_lb.app_lb.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-2016-08"
+  certificate_arn   = var.acm_certificate_arn
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.app_tg.arn
   }
 }
