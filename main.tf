@@ -105,7 +105,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "bucket_sse" {
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "aws:kms"
+      sse_algorithm     = "aws:kms"
       kms_master_key_id = aws_kms_key.s3_key.arn
     }
   }
@@ -233,14 +233,14 @@ resource "aws_iam_policy" "s3_access_policy" {
 }
 
 resource "aws_iam_policy" "secrets_access_policy" {
-  name = "SecretsManagerAccessPolicy"
+  name        = "SecretsManagerAccessPolicy"
   description = "Allow EC2 to access Secrets Manager"
 
   policy = jsonencode({
     Version = "2012-10-17",
     Statement = [{
-      Effect   = "Allow",
-      Action   = [
+      Effect = "Allow",
+      Action = [
         "secretsmanager:GetSecretValue",
         "secretsmanager:DescribeSecret",
         "kms:Encrypt",
@@ -506,16 +506,16 @@ resource "aws_kms_key" "ec2_key" {
     Version = "2012-10-17",
     Statement = [
       {
-        Sid = "AllowRootFullAccess",
+        Sid    = "AllowRootFullAccess",
         Effect = "Allow",
         Principal = {
           AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
         },
-        Action = "kms:*",
+        Action   = "kms:*",
         Resource = "*"
       },
       {
-        Sid = "AllowEC2ServiceUse",
+        Sid    = "AllowEC2ServiceUse",
         Effect = "Allow",
         Principal = {
           Service = "ec2.amazonaws.com"
@@ -537,7 +537,7 @@ resource "aws_kms_key" "ec2_key" {
         }
       },
       {
-        Sid = "AllowAutoScalingService",
+        Sid    = "AllowAutoScalingService",
         Effect = "Allow",
         Principal = {
           Service = "autoscaling.amazonaws.com"
@@ -546,7 +546,7 @@ resource "aws_kms_key" "ec2_key" {
         Resource = "*"
       },
       {
-        Sid = "AllowServiceLinkedRoleAutoScaling",
+        Sid    = "AllowServiceLinkedRoleAutoScaling",
         Effect = "Allow",
         Principal = {
           AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling"
@@ -638,7 +638,7 @@ resource "aws_kms_key" "s3_key" {
         Resource = "*"
       },
       {
-        Sid = "AllowEC2ToUseS3KMS",
+        Sid    = "AllowEC2ToUseS3KMS",
         Effect = "Allow",
         Principal = {
           AWS = aws_iam_role.ec2_s3_role.arn
@@ -704,8 +704,8 @@ resource "aws_kms_key" "secrets_key" {
 }
 
 resource "random_password" "db_password" {
-  length           = 12
-  special          = false
+  length  = 12
+  special = false
 }
 
 resource "random_id" "secret_suffix" {
@@ -713,9 +713,9 @@ resource "random_id" "secret_suffix" {
 }
 
 resource "aws_secretsmanager_secret" "db_password_secret" {
-  name                    = "csye6225-db-password-${random_id.secret_suffix.hex}"
-  description             = "RDS password stored securely"
-  kms_key_id              = aws_kms_key.secrets_key.arn
+  name        = "csye6225-db-password-${random_id.secret_suffix.hex}"
+  description = "RDS password stored securely"
+  kms_key_id  = aws_kms_key.secrets_key.arn
 }
 
 resource "aws_secretsmanager_secret_version" "db_password_secret_version" {

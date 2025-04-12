@@ -124,5 +124,5 @@ variable "a_record_name" {
 variable "acm_certificate_arn" {
   description = "value of the ACM certificate ARN for the dev environment"
   type        = string
-  default = "arn:aws:acm:us-east-1:571600842070:certificate/cf96350a-fae2-435c-8a30-5f070969efa1"
+  default     = "arn:aws:acm:us-east-1:571600842070:certificate/cf96350a-fae2-435c-8a30-5f070969efa1"
 }
